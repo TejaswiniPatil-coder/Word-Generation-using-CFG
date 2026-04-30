@@ -1,23 +1,31 @@
 """
 CFG Simulator — Flask bridge between C backend and Web UI
-Run: python3 server.py  (from inside the backend/ folder)
-Then open: http://localhost:5000
+Render-compatible version
 """
-import subprocess, json, os
+import subprocess, os
 from flask import Flask, request, jsonify, send_from_directory
-
-# frontend/ is one level up from backend/
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend')
-
-app = Flask(__name__, static_folder=FRONTEND_DIR)
-
-CFG_SIM  = os.path.join(os.path.dirname(__file__), 'cfg_sim')
-DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
-OUT_DIR  = os.path.join(os.path.dirname(__file__), 'output')
-
+ 
+# ── Paths ──────────────────────────────────────────────────────────────────
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, '..', 'frontend')
+CFG_SIM      = os.path.join(BASE_DIR, 'cfg_sim')
+DATA_DIR     = os.path.join(BASE_DIR, 'data')
+OUT_DIR      = os.path.join(BASE_DIR, 'output')
+ 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(OUT_DIR,  exist_ok=True)
-
+ 
+# ── App ────────────────────────────────────────────────────────────────────
+app = Flask(__name__, static_folder=FRONTEND_DIR)
+ 
+# ── Startup check (works with both gunicorn and python3 server.py) ─────────
+if not os.path.exists(CFG_SIM):
+    raise RuntimeError(
+        "cfg_sim not found. Make sure 'make' ran during build step.\n"
+        "Build command should be: pip install -r requirements.txt && cd backend && make"
+    )
+ 
+# ── Helper ─────────────────────────────────────────────────────────────────
 def run_cfg(inputs: str) -> str:
     """Send stdin to cfg_sim and capture stdout."""
     try:
@@ -29,11 +37,12 @@ def run_cfg(inputs: str) -> str:
         return result.stdout
     except Exception as e:
         return f"Error: {e}"
-
+ 
+# ── Routes ─────────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
     return send_from_directory(FRONTEND_DIR, 'index.html')
-
+ 
 @app.route('/api/parse', methods=['POST'])
 def api_parse():
     data = request.json
@@ -44,7 +53,7 @@ def api_parse():
     inp = f"1\n{gfile}\n3\n0\n"
     out = run_cfg(inp)
     return jsonify({'output': out, 'ok': True})
-
+ 
 @app.route('/api/generate', methods=['POST'])
 def api_generate():
     data = request.json
@@ -64,7 +73,7 @@ def api_generate():
                 if line:
                     words.append('' if line == 'epsilon' else line)
     return jsonify({'words': words})
-
+ 
 @app.route('/api/validate', methods=['POST'])
 def api_validate():
     data = request.json
@@ -84,10 +93,9 @@ def api_validate():
         if in_deriv and line.strip():
             steps.append(line.strip())
     return jsonify({'valid': valid, 'steps': steps, 'output': out})
-
+ 
+# ── Local dev only ─────────────────────────────────────────────────────────
 if __name__ == '__main__':
-    if not os.path.exists(CFG_SIM):
-        print("ERROR: cfg_sim not compiled. Run: make  (inside backend/ folder)")
-        exit(1)
-    print("CFG Simulator server running at http://localhost:5000")
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    print(f"CFG Simulator running at http://localhost:{port}")
+    app.run(debug=False, host='0.0.0.0', port=port)
