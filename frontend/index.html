@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CFG Simulator — Context-Free Grammar Toolkit</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3e;
+    --accent: #7c6aff;
+    --accent2: #ff6a9a;
+    --accent3: #6affcc;
+    --text: #e8e8f0;
+    --text-dim: #7878a0;
+    --valid: #4fffb0;
+    --invalid: #ff5577;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Ambient background grid */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(124,106,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,106,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* Glowing orbs */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(124,106,255,0.08) 0%, transparent 70%);
+    top: -100px; right: -100px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 24px 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+
+  .logo {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+    box-shadow: 0 0 24px rgba(124,106,255,0.4);
+  }
+
+  h1 {
+    font-size: 26px; font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  .badge {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    background: rgba(124,106,255,0.12);
+    border: 1px solid rgba(124,106,255,0.3);
+    border-radius: 100px;
+    color: var(--accent);
+  }
+
+  /* ── LAYOUT ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  /* ── PANEL ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface2);
+  }
+
+  .panel-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+
+  .panel-icon.purple { background: rgba(124,106,255,0.15); }
+  .panel-icon.pink   { background: rgba(255,106,154,0.15); }
+  .panel-icon.green  { background: rgba(106,255,204,0.15); }
+  .panel-icon.orange { background: rgba(255,180,50,0.15);  }
+
+  .panel-title {
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+
+  .panel-body { padding: 20px; }
+
+  /* ── GRAMMAR INPUT ── */
+  .grammar-area {
+    width: 100%;
+    min-height: 140px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.7;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .grammar-area:focus { border-color: var(--accent); }
+  .grammar-area::placeholder { color: var(--text-dim); }
+
+  .examples {
+    margin-top: 12px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+
+  .example-chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text-dim);
+  }
+  .example-chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(124,106,255,0.08); }
+
+  /* ── CONTROLS ── */
+  .controls { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .input-row {
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  label {
+    font-size: 12px; color: var(--text-dim);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  input[type=text], input[type=number] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  input:focus { border-color: var(--accent); }
+
+  /* ── BUTTONS ── */
+  .btn {
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 13px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #a06aff);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(124,106,255,0.3);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(124,106,255,0.45); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-accent2 {
+    background: linear-gradient(135deg, var(--accent2), #ff9a6a);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(255,106,154,0.3);
+  }
+  .btn-accent2:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,106,154,0.4); }
+
+  .btn-validate {
+    background: linear-gradient(135deg, var(--accent3), #6ab0ff);
+    color: #0a0a0f;
+    box-shadow: 0 4px 16px rgba(106,255,204,0.25);
+    font-weight: 800;
+  }
+  .btn-validate:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(106,255,204,0.4); }
+
+  .btn-full { width: 100%; justify-content: center; }
+
+  /* ── RIGHT COLUMN ── */
+  .right-col { display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── WORDS LIST ── */
+  .words-grid {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    min-height: 50px;
+    padding: 4px;
+  }
+
+  .word-chip {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 5px 12px;
+    background: rgba(124,106,255,0.08);
+    border: 1px solid rgba(124,106,255,0.2);
+    border-radius: 8px;
+    color: var(--accent);
+    animation: pop-in 0.25s ease both;
+  }
+  .word-chip.epsilon { color: var(--accent2); border-color: rgba(255,106,154,0.3); background: rgba(255,106,154,0.08); }
+
+  @keyframes pop-in {
+    from { opacity: 0; transform: scale(0.8) translateY(4px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0); }
+  }
+
+  /* ── DERIVATION ── */
+  .derivation-steps {
+    font-family: var(--mono);
+    font-size: 14px;
+    min-height: 60px;
+  }
+
+  .deriv-step {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    opacity: 0;
+    transform: translateX(-12px);
+    transition: all 0.35s ease;
+    margin-bottom: 2px;
+  }
+  .deriv-step.visible { opacity: 1; transform: translateX(0); }
+  .deriv-step:hover { background: rgba(255,255,255,0.03); }
+
+  .step-num {
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 24px;
+    text-align: right;
+  }
+  .step-arrow {
+    color: var(--accent2);
+    font-size: 16px;
+  }
+  .step-form {
+    color: var(--text);
+  }
+  .step-form .nt { color: var(--accent); font-weight: 600; }
+  .step-form .t  { color: var(--accent3); }
+  .step-form .eps { color: var(--accent2); }
+
+  /* ── RESULT BADGE ── */
+  .result-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-weight: 700; font-size: 15px;
+    margin-bottom: 14px;
+    animation: slide-in 0.3s ease;
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .result-badge.valid   { background: rgba(79,255,176,0.1); border: 1px solid rgba(79,255,176,0.3); color: var(--valid); }
+  .result-badge.invalid { background: rgba(255,85,119,0.1); border: 1px solid rgba(255,85,119,0.3); color: var(--invalid); }
+
+  /* ── PARSE TREE SVG ── */
+  #tree-container {
+    overflow: auto;
+    min-height: 200px;
+    background: var(--bg);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    padding: 20px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  #tree-svg text { font-family: var(--mono); }
+
+  .tree-node-circle {
+    fill: var(--surface2);
+    stroke: var(--accent);
+    stroke-width: 2;
+    transition: all 0.2s;
+    cursor: default;
+  }
+  .tree-node-circle.terminal {
+    stroke: var(--accent3);
+    fill: rgba(106,255,204,0.06);
+  }
+  .tree-node-circle.epsilon-node {
+    stroke: var(--accent2);
+    fill: rgba(255,106,154,0.06);
+  }
+  .tree-node-circle:hover { filter: brightness(1.3); }
+  .tree-edge { stroke: var(--border); stroke-width: 1.5; fill: none; }
+
+  /* ── STATUS ── */
+  .status-bar {
+    font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex; gap: 16px;
+  }
+  .status-bar span { color: var(--accent); }
+
+  /* ── EMPTY STATES ── */
+  .empty {
+    color: var(--text-dim); font-size: 13px; font-family: var(--mono);
+    text-align: center; padding: 24px;
+  }
+
+  /* ── GRAMMAR DISPLAY ── */
+  .grammar-display {
+    font-family: var(--mono); font-size: 13px; line-height: 1.9;
+  }
+  .grammar-display .lhs { color: var(--accent); font-weight: 600; }
+  .grammar-display .arrow { color: var(--text-dim); margin: 0 6px; }
+  .grammar-display .prod { color: var(--text); }
+  .grammar-display .sep { color: var(--accent2); margin: 0 6px; }
+  .grammar-display .eps-sym { color: var(--accent2); }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 2px; padding: 12px 20px 0; background: var(--surface2); }
+  .tab {
+    padding: 8px 16px;
+    font-size: 12px; font-weight: 600; font-family: var(--mono);
+    cursor: pointer; border-radius: 8px 8px 0 0;
+    color: var(--text-dim);
+    border: 1px solid transparent; border-bottom: none;
+    transition: all 0.15s;
+  }
+  .tab.active { background: var(--surface); color: var(--accent); border-color: var(--border); }
+  .tab:not(.active):hover { color: var(--text); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── SPEED CONTROL ── */
+  .speed-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+  }
+  input[type=range] {
+    flex: 1; accent-color: var(--accent);
+    background: transparent;
+    height: 4px;
+  }
+
+  /* ── TOOLTIP ── */
+  .tip {
+    font-size: 11px; color: var(--text-dim); font-family: var(--mono);
+    margin-top: 6px; line-height: 1.5;
+  }
+
+  /* ── DEBUGGER ── */
+  .debugger-issue {
+    background: rgba(255,255,255,0.03);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 4px 8px 8px 4px;
+    margin-bottom: 10px;
+    font-size: 13px; font-family: var(--mono);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .debugger-issue.error { border-left-color: var(--invalid); }
+  .debugger-issue.warning { border-left-color: var(--accent2); }
+  .fix-btn {
+    align-self: flex-start;
+    padding: 4px 10px; font-size: 11px;
+    background: rgba(124,106,255,0.15); color: var(--accent);
+    border: 1px solid rgba(124,106,255,0.3); border-radius: 6px;
+    cursor: pointer; transition: all 0.2s; font-family: var(--sans); font-weight: 600;
+  }
+  .fix-btn:hover { background: rgba(124,106,255,0.25); color: #fff; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Loading spinner */
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">𝒢</div>
+    <div>
+      <h1>CFG <span>Simulator</span></h1>
+      <div class="subtitle">Context-Free Grammar · Word Generator · Validator · Parse Tree Visualizer</div>
+    </div>
+    <div class="badge">v1.0 · Standalone</div>
+  </header>
+
+  <div class="layout">
+
+    <!-- ── LEFT PANEL: INPUT ── -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Grammar Input -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon purple">⟨⟩</div>
+          <span class="panel-title">Grammar Definition</span>
+        </div>
+        <div class="panel-body">
+          <textarea class="grammar-area" id="grammar-input" spellcheck="false"
+            placeholder="S->aSb|#&#10;A->aA|a&#10;&#10;One production per line&#10;Use # for ε (epsilon)"></textarea>
+
+          <div class="tip">Format: LHS->RHS1|RHS2  &nbsp;·&nbsp;  Use # for ε</div>
+
+          <div class="examples">
+            <span style="font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-right:4px;">Examples:</span>
+            <div class="example-chip" onclick="loadExample('anbn')">aⁿbⁿ</div>
+            <div class="example-chip" onclick="loadExample('palindrome')">Palindrome</div>
+            <div class="example-chip" onclick="loadExample('expr')">Arithmetic</div>
+            <div class="example-chip" onclick="loadExample('ab_star')">a*b*</div>
+            <div class="example-chip" onclick="loadExample('equal')">Equal a,b</div>
+          </div>
+
+          <div class="controls">
+            <button class="btn btn-primary btn-full" onclick="parseGrammar()">
+              ⚡ Parse Grammar
+            </button>
+          </div>
+        </div>
+
+        <!-- Grammar Display -->
+        <div id="grammar-display-panel" style="display:none; border-top:1px solid var(--border); padding:16px 20px;">
+          <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-bottom:8px;">PARSED GRAMMAR</div>
+          <div class="grammar-display" id="grammar-display"></div>
+        </div>
+
+        <div class="status-bar">
+          Productions: <span id="stat-prods">0</span>
+          &nbsp;·&nbsp; Terminals: <span id="stat-terms">—</span>
+          &nbsp;·&nbsp; Start: <span id="stat-start">—</span>
+        </div>
+      </div>
+
+      <!-- Debugger Panel -->
+      <div class="panel" id="debugger-panel" style="display:none;">
+        <div class="panel-header">
+          <div class="panel-icon pink">⚡</div>
+          <span class="panel-title">Grammar Debugger</span>
+        </div>
+        <div class="panel-body" id="debugger-body">
+        </div>
+      </div>
+
+      <!-- Word Generator -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon orange">⊕</div>
+          <span class="panel-title">Word Generator</span>
+        </div>
+        <div class="panel-body">
+          <div class="input-row">
+            <label>Max length:</label>
+            <input type="number" id="max-len" value="8" min="1" max="20" style="width:80px;">
+            <button class="btn btn-accent2" onclick="generateWords()" style="flex:1;">
+              ▶ Generate
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Validator -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon green">✓</div>
+          <span class="panel-title">String Validator</span>
+        </div>
+        <div class="panel-body">
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="validate-input" placeholder="Enter string (blank = ε)" style="flex:1;"
+              onkeydown="if(event.key==='Enter') validateString()">
+            <button class="btn btn-validate" onclick="validateString()">Validate</button>
+          </div>
+          <div class="tip">Press Enter or click Validate to check the string</div>
+          <div class="speed-row" style="margin-top:14px;">
+            <label>Animation speed:</label>
+            <input type="range" id="anim-speed" min="100" max="1200" value="500" step="100">
+            <label id="speed-label" style="min-width:40px;">500ms</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Mode -->
+      <div class="panel" id="game-panel">
+        <div class="panel-header">
+          <div class="panel-icon pink">🎮</div>
+          <span class="panel-title">Mini Game</span>
+        </div>
+        <div class="panel-body" style="text-align:center;">
+          <div style="font-size:12px; color:var(--text-dim); margin-bottom:12px;">Is this string valid for the current grammar?</div>
+          <div id="game-word" style="font-size:24px; font-weight:800; font-family:var(--mono); letter-spacing:2px; margin:20px 0; min-height:36px; padding:10px; background:rgba(0,0,0,0.3); border-radius:10px; border:1px solid var(--border);">???</div>
+          <div style="display:flex; gap:12px; justify-content:center;">
+             <button class="btn btn-primary" onclick="playGame(true)" style="background:var(--valid); color:#0a0a0f; box-shadow:0 4px 16px rgba(79,255,176,0.2); flex:1; justify-content:center;">✔ VALID</button>
+             <button class="btn btn-primary" onclick="playGame(false)" style="background:var(--invalid); color:#fff; box-shadow:0 4px 16px rgba(255,85,119,0.2); flex:1; justify-content:center;">✘ INVALID</button>
+          </div>
+          <div id="game-feedback" style="margin-top:16px; font-weight:700; min-height:20px; font-size:14px;"></div>
+          <button class="btn btn-secondary" onclick="nextGameWord()" style="margin-top:16px; width:100%; justify-content:center; display:none;" id="game-next-btn">Next String ▶</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── RIGHT COLUMN ── -->
+    <div class="right-col">
+
+      <!-- Generated Words -->
+      <div class="panel">
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('words')">Generated Words</div>
+          <div class="tab" onclick="switchTab('derivation')">Derivation Steps</div>
+          <div class="tab" onclick="switchTab('tree')">Parse Tree</div>
+        </div>
+
+        <!-- Words Tab -->
+        <div class="tab-content active" id="tab-words">
+          <div class="panel-body">
+            <div id="words-container">
+              <div class="empty">Parse a grammar and click Generate to see words</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Derivation Tab -->
+        <div class="tab-content" id="tab-derivation">
+          <div class="panel-body">
+            <div id="result-badge"></div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div>
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); margin-bottom:10px;">LEFTMOST DERIVATION</div>
+                    <div class="derivation-steps" id="derivation-leftmost">
+                        <div class="empty">Validate a string</div>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); margin-bottom:10px;">RIGHTMOST DERIVATION</div>
+                    <div class="derivation-steps" id="derivation-rightmost">
+                        <div class="empty">Validate a string</div>
+                    </div>
+                </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Parse Tree Tab -->
+        <div class="tab-content" id="tab-tree">
+          <div class="panel-body" style="padding:12px;">
+            <div id="tree-ambiguity-controls" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:var(--surface2); padding:10px; border-radius:8px;">
+                <span id="ambiguity-badge" style="color:var(--accent2); font-weight:700; font-size:13px;">⚠ Ambiguous</span>
+                <div style="display:flex; align-items:center;">
+                   <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="prevTree()">◀</button>
+                   <span id="tree-counter" style="font-family:var(--mono); font-size:12px; margin:0 10px;">1/2</span>
+                   <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="nextTree()">▶</button>
+                </div>
+            </div>
+            <div id="tree-container">
+              <div class="empty">Validate a valid string to see its parse tree</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-bar" id="bottom-status">
+          Status: <span>Waiting for input</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CFG ENGINE (Pure JavaScript) ──────────────────────────────────────────
+
+class CFGEngine {
+  constructor() {
+    this.productions = {}; // lhs -> [rhs, ...]
+    this.startSymbol = null;
+    this.terminals = new Set();
+    this.nonTerminals = new Set();
+  }
+
+  parse(text) {
+    this.productions = {};
+    this.startSymbol = null;
+    this.terminals = new Set();
+    this.nonTerminals = new Set();
+
+    const lines = text.split('\n');
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('//')) continue;
+
+      // Support -> and →
+      const arrowIdx = line.indexOf('->') !== -1 ? line.indexOf('->') : line.indexOf('→');
+      if (arrowIdx === -1) continue;
+      const arrowLen = line[arrowIdx] === '-' ? 2 : 1;
+
+      const lhs = line.slice(0, arrowIdx).trim();
+      if (!lhs || !this.isNT(lhs[0])) continue;
+
+      const rhsPart = line.slice(arrowIdx + arrowLen);
+      const rhs = rhsPart.split('|').map(r => {
+        let s = r.trim();
+        if (s === 'ε' || s === 'epsilon' || s === 'eps' || s === '#' || s === '') return '#';
+        return s;
+      }).filter(r => r !== '');
+
+      if (!this.productions[lhs[0]]) {
+        this.productions[lhs[0]] = [];
+      }
+      for (const r of rhs) {
+        if (!this.productions[lhs[0]].includes(r))
+          this.productions[lhs[0]].push(r);
+      }
+
+      if (!this.startSymbol) this.startSymbol = lhs[0];
+    }
+
+    // Identify terminals and non-terminals
+    for (const [lhs, rhsList] of Object.entries(this.productions)) {
+      this.nonTerminals.add(lhs);
+      for (const rhs of rhsList) {
+        if (rhs === '#') continue;
+        for (const c of rhs) {
+          if (this.isNT(c)) this.nonTerminals.add(c);
+          else this.terminals.add(c);
+        }
+      }
+    }
+
+    return this.startSymbol !== null;
+  }
+
+  isNT(c) { return c >= 'A' && c <= 'Z'; }
+
+  hasNT(s) { return [...s].some(c => this.isNT(c)); }
+
+  resolveEps(s) {
+    return s.split('').filter(c => c !== '#').join('');
+  }
+
+  termLen(s) { return s.split('').filter(c => !this.isNT(c) && c !== '#').length; }
+
+  // Generate all words up to max_len
+  generate(maxLen) {
+    const results = new Set();
+    const visited = new Set();
+
+    const dfs = (current, depth) => {
+      if (depth > 60) return;
+      if (visited.has(current)) return;
+      visited.add(current);
+
+      if (this.termLen(current) > maxLen) return;
+
+      if (!this.hasNT(current)) {
+        const word = this.resolveEps(current);
+        results.add(word);
+        return;
+      }
+
+      // Find leftmost NT
+      let ntPos = -1;
+      for (let i = 0; i < current.length; i++) {
+        if (this.isNT(current[i])) { ntPos = i; break; }
+      }
+      const nt = current[ntPos];
+      const prods = this.productions[nt] || [];
+
+      for (const rhs of prods) {
+        const expansion = rhs === '#' ? '#' : rhs;
+        const next = current.slice(0, ntPos) + expansion + current.slice(ntPos + 1);
+        dfs(next, depth + 1);
+      }
+    };
+
+    dfs(this.startSymbol, 0);
+    return [...results].sort((a, b) => a.length - b.length || a.localeCompare(b));
+  }
+
+  // Validate and produce derivation steps (supports Leftmost or Rightmost)
+  validateAll(input, strategy = 'leftmost', limit = 5) {
+    const allPaths = [];
+
+    const dfs = (current, target, stepsSoFar, depth) => {
+      if (allPaths.length >= limit) return;
+      if (depth > 50) return;
+
+      if (!this.hasNT(current)) {
+        const resolved = this.resolveEps(current);
+        if (resolved === target) {
+          allPaths.push(stepsSoFar);
+        }
+        return;
+      }
+
+      if (this.termLen(current) > target.length) return;
+
+      let ntPos = -1;
+      if (strategy === 'leftmost') {
+        for (let i = 0; i < current.length; i++) {
+          if (this.isNT(current[i])) { ntPos = i; break; }
+        }
+      } else {
+        for (let i = current.length - 1; i >= 0; i--) {
+          if (this.isNT(current[i])) { ntPos = i; break; }
+        }
+      }
+      const nt = current[ntPos];
+      const prods = this.productions[nt] || [];
+
+      for (const rhs of prods) {
+        if (allPaths.length >= limit) return;
+        const expansion = rhs === '#' ? '#' : rhs;
+        const next = current.slice(0, ntPos) + expansion + current.slice(ntPos + 1);
+
+        const tc = this.termLen(next);
+        if (tc > target.length) continue;
+
+        const newSteps = [...stepsSoFar, next];
+        dfs(next, target, newSteps, depth + 1);
+      }
+    };
+
+    dfs(this.startSymbol, input, [this.startSymbol], 0);
+    return allPaths;
+  }
+
+  // Build parse tree
+  buildTreeAll(nt, target, depth = 0, limit = 5) {
+    if (depth > 50) return [];
+    const prods = this.productions[nt] || [];
+    const trees = [];
+
+    for (const rhs of prods) {
+      if (trees.length >= limit) break;
+      if (rhs === '#') {
+        if (target === '') {
+          trees.push({ sym: nt, children: [{ sym: 'ε', children: [] }] });
+        }
+        continue;
+      }
+
+      // Check if rhs (all terminals) matches target directly
+      if (!this.hasNT(rhs)) {
+        if (rhs === target) {
+          trees.push({
+            sym: nt,
+            children: [...rhs].map(c => ({ sym: c, children: [] }))
+          });
+        }
+        continue;
+      }
+
+      // rhs has NTs — try to split target among symbols
+      const syms = [...rhs];
+      const splits = this.trySplitAll(syms, target, depth + 1, limit - trees.length);
+      for (const split of splits) {
+        trees.push({ sym: nt, children: split });
+      }
+    }
+    return trees;
+  }
+
+  trySplitAll(syms, target, depth, limit) {
+    if (limit <= 0) return [];
+    if (syms.length === 0) {
+      return target === '' ? [[]] : [];
+    }
+
+    const sym = syms[0];
+    const rest = syms.slice(1);
+    const results = [];
+
+    if (!this.isNT(sym)) {
+      // terminal must match first char
+      if (target[0] !== sym) return [];
+      const restSplits = this.trySplitAll(rest, target.slice(1), depth, limit);
+      for (const split of restSplits) {
+        results.push([{ sym, children: [] }, ...split]);
+      }
+      return results;
+    }
+
+    // NT — try all possible amounts it can consume
+    const minAfter = rest.filter(s => !this.isNT(s)).length;
+    const maxConsume = target.length - minAfter;
+
+    for (let consume = maxConsume; consume >= 0; consume--) {
+      if (results.length >= limit) break;
+      const sub = target.slice(0, consume);
+      const nodes = this.buildTreeAll(sym, sub, depth, limit - results.length);
+      for (const node of nodes) {
+        if (results.length >= limit) break;
+        const restSplits = this.trySplitAll(rest, target.slice(consume), depth, limit - results.length);
+        for (const split of restSplits) {
+          if (results.length >= limit) break;
+          results.push([node, ...split]);
+        }
+      }
+    }
+    return results;
+  }
+
+  debugGrammar() {
+    const issues = [];
+    const suggestions = [];
+
+    if (!this.startSymbol) return { issues, suggestions };
+
+    // 1. Unreachable non-terminals
+    const reachable = new Set([this.startSymbol]);
+    const queue = [this.startSymbol];
+    while (queue.length > 0) {
+      const nt = queue.shift();
+      const prods = this.productions[nt] || [];
+      for (const rhs of prods) {
+        if (rhs === '#') continue;
+        for (const c of rhs) {
+          if (this.isNT(c) && !reachable.has(c)) {
+            reachable.add(c);
+            queue.push(c);
+          }
+        }
+      }
+    }
+    for (const nt of this.nonTerminals) {
+      if (!reachable.has(nt)) {
+        issues.push({ type: 'warning', msg: `Symbol '${nt}' is unreachable from start symbol '${this.startSymbol}'.` });
+      }
+    }
+
+    // 2. Non-generating symbols
+    let generating = new Set();
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [nt, prods] of Object.entries(this.productions)) {
+        if (generating.has(nt)) continue;
+        for (const rhs of prods) {
+          if (rhs === '#') {
+            generating.add(nt); changed = true; break;
+          }
+          let allGen = true;
+          for (const c of rhs) {
+            if (this.isNT(c) && !generating.has(c)) {
+              allGen = false; break;
+            }
+          }
+          if (allGen) {
+            generating.add(nt); changed = true; break;
+          }
+        }
+      }
+    }
+    for (const nt of this.nonTerminals) {
+      if (!generating.has(nt)) {
+        issues.push({ type: 'error', msg: `Symbol '${nt}' is non-generating (cannot derive a terminal string).` });
+      }
+    }
+
+    // 3. Direct Left Recursion
+    for (const [nt, prods] of Object.entries(this.productions)) {
+      let hasLeftRec = false;
+      let alpha = [];
+      let beta = [];
+      for (const rhs of prods) {
+        if (rhs.startsWith(nt)) {
+          hasLeftRec = true;
+          alpha.push(rhs.slice(nt.length) || '#');
+        } else {
+          beta.push(rhs);
+        }
+      }
+      if (hasLeftRec) {
+        issues.push({ type: 'error', msg: `Symbol '${nt}' has direct left recursion, which causes infinite loops in parsers.` });
+        if (beta.length === 0) beta = ['#']; // If no beta, must inject epsilon or fallback
+        suggestions.push({ type: 'fix_left_rec', nt, alpha, beta });
+      }
+    }
+
+    return { issues, suggestions };
+  }
+}
+
+// ── APP STATE ──────────────────────────────────────────────────────────────
+
+const engine = new CFGEngine();
+let grammarParsed = false;
+let currentParseTrees = [];
+let currentTreeIdx = 0;
+let animTimer = null;
+
+const examples = {
+  anbn:      "S->aSb|#",
+  palindrome:"S->aSa|bSb|a|b|#",
+  expr:      "E->E+T|T\nT->T*F|F\nF->(E)|a|b",
+  ab_star:   "S->AB\nA->aA|#\nB->bB|#",
+  equal:     "S->aSb|bSa|SS|#"
+};
+
+function loadExample(key) {
+  document.getElementById('grammar-input').value = examples[key];
+  parseGrammar();
+}
+
+// ── PARSE GRAMMAR ──────────────────────────────────────────────────────────
+
+function parseGrammar() {
+  const text = document.getElementById('grammar-input').value.trim();
+  if (!text) { showStatus('Enter a grammar first'); return; }
+
+  grammarParsed = engine.parse(text);
+  if (!grammarParsed) { 
+    showStatus('Failed to parse grammar'); 
+    document.getElementById('debugger-panel').style.display = 'none';
+    return; 
+  }
+
+  // Update stats
+  document.getElementById('stat-prods').textContent =
+    Object.values(engine.productions).reduce((s, a) => s + a.length, 0);
+  document.getElementById('stat-terms').textContent =
+    [...engine.terminals].join(', ') || '(none)';
+  document.getElementById('stat-start').textContent = engine.startSymbol;
+
+  // Display grammar
+  const display = document.getElementById('grammar-display');
+  display.innerHTML = '';
+  for (const [lhs, rhsList] of Object.entries(engine.productions)) {
+    const div = document.createElement('div');
+    const rhsHTML = rhsList.map(r => {
+      if (r === '#') return '<span class="eps-sym">ε</span>';
+      return [...r].map(c =>
+        engine.isNT(c)
+          ? `<span class="nt">${c}</span>`
+          : `<span class="t">${c}</span>`
+      ).join('');
+    }).join('<span class="sep"> | </span>');
+    div.innerHTML = `<span class="lhs">${lhs}</span><span class="arrow">→</span>${rhsHTML}`;
+    display.appendChild(div);
+  }
+  document.getElementById('grammar-display-panel').style.display = 'block';
+  showStatus('Grammar parsed — ' + Object.keys(engine.productions).length + ' non-terminals');
+  
+  runDebugger();
+  nextGameWord();
+}
+
+// ── DEBUGGER ───────────────────────────────────────────────────────────────
+
+function runDebugger() {
+  const { issues, suggestions } = engine.debugGrammar();
+  const panel = document.getElementById('debugger-panel');
+  const body = document.getElementById('debugger-body');
+  
+  if (issues.length === 0) {
+    panel.style.display = 'block';
+    body.innerHTML = '<div style="color:var(--valid); font-size:13px; font-family:var(--mono);">✔ Grammar looks good! No issues detected.</div>';
+    return;
+  }
+  
+  panel.style.display = 'block';
+  body.innerHTML = '';
+  
+  issues.forEach(issue => {
+    const div = document.createElement('div');
+    div.className = `debugger-issue ${issue.type}`;
+    div.innerHTML = `<div>${issue.type === 'error' ? '❌' : '⚠'} ${issue.msg}</div>`;
+    
+    // Check if there is a suggestion for this symbol
+    const ntMatch = issue.msg.match(/'([A-Z])'/);
+    if (ntMatch) {
+      const nt = ntMatch[1];
+      const sugg = suggestions.find(s => s.nt === nt);
+      if (sugg && sugg.type === 'fix_left_rec') {
+        const btn = document.createElement('button');
+        btn.className = 'fix-btn';
+        btn.innerHTML = '💡 Auto-Fix Left Recursion';
+        btn.onclick = () => applyFixLeftRec(sugg.nt, sugg.alpha, sugg.beta);
+        div.appendChild(btn);
+      }
+    }
+    
+    body.appendChild(div);
+  });
+}
+
+function applyFixLeftRec(nt, alpha, beta) {
+  // Find a fresh non-terminal letter
+  let newNt = nt + "'";
+  for (let i = 0; i < 26; i++) {
+    const char = String.fromCharCode(65 + i);
+    if (!engine.nonTerminals.has(char) && char !== nt) {
+      newNt = char;
+      break;
+    }
+  }
+
+  let newBeta = beta.map(b => (b === '#' ? '' : b) + newNt).join('|');
+  if (!newBeta) newBeta = newNt; // fallback for no beta rules
+  
+  let newAlpha = alpha.map(a => (a === '#' ? '' : a) + newNt).join('|') + '|#';
+  
+  const rules = document.getElementById('grammar-input').value.split('\n');
+  const outLines = [];
+  
+  for (let line of rules) {
+    if (line.trim().startsWith(nt + '->') || line.trim().startsWith(nt + '→')) {
+      outLines.push(`${nt}->${newBeta}`);
+      outLines.push(`${newNt}->${newAlpha}`);
+    } else {
+      outLines.push(line);
+    }
+  }
+  
+  document.getElementById('grammar-input').value = outLines.join('\n');
+  parseGrammar(); // Re-parse immediately
+}
+
+// ── GENERATE WORDS ─────────────────────────────────────────────────────────
+
+function generateWords() {
+  if (!grammarParsed) { alert('Parse a grammar first!'); return; }
+  const maxLen = parseInt(document.getElementById('max-len').value) || 8;
+
+  const container = document.getElementById('words-container');
+  container.innerHTML = '<div class="empty"><div class="spinner"></div></div>';
+
+  setTimeout(() => {
+    const words = engine.generate(maxLen);
+    if (words.length === 0) {
+      container.innerHTML = '<div class="empty">No words generated (try a larger length)</div>';
+      return;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'words-grid';
+
+    words.forEach((w, i) => {
+      const chip = document.createElement('div');
+      chip.className = 'word-chip' + (w === '' ? ' epsilon' : '');
+      chip.textContent = w === '' ? 'ε' : w;
+      chip.style.animationDelay = (i * 30) + 'ms';
+      chip.title = 'Click to validate';
+      chip.onclick = () => {
+        document.getElementById('validate-input').value = w;
+        validateString();
+      };
+      grid.appendChild(chip);
+    });
+
+    const info = document.createElement('div');
+    info.style.cssText = 'font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:10px;padding:4px;';
+    info.textContent = `${words.length} word(s) · max length ${maxLen} · click any word to validate`;
+    container.innerHTML = '';
+    container.appendChild(grid);
+    container.appendChild(info);
+
+    switchTab('words');
+    showStatus(`Generated ${words.length} word(s) up to length ${maxLen}`);
+  }, 50);
+}
+
+// ── VALIDATE STRING ────────────────────────────────────────────────────────
+
+async function validateString() {
+  if (!grammarParsed) { alert('Parse a grammar first!'); return; }
+  const input = document.getElementById('validate-input').value;
+  const speed = parseInt(document.getElementById('anim-speed').value);
+
+  switchTab('derivation');
+
+  const badge = document.getElementById('result-badge');
+  const lmDiv = document.getElementById('derivation-leftmost');
+  const rmDiv = document.getElementById('derivation-rightmost');
+  badge.innerHTML = '';
+  lmDiv.innerHTML = '<div class="empty"><div class="spinner"></div></div>';
+  rmDiv.innerHTML = '<div class="empty"><div class="spinner"></div></div>';
+
+  // Run in a microtask to allow UI update
+  await new Promise(r => setTimeout(r, 20));
+
+  const lmPaths = engine.validateAll(input, 'leftmost');
+  const rmPaths = engine.validateAll(input, 'rightmost');
+
+  badge.innerHTML = '';
+  lmDiv.innerHTML = '';
+  rmDiv.innerHTML = '';
+
+  if (lmPaths && lmPaths.length > 0) {
+    badge.innerHTML = `<div class="result-badge valid">✔ &nbsp;"${input || 'ε'}" is VALID</div>`;
+
+    // Animate Leftmost, display Rightmost directly
+    const steps = lmPaths[0];
+    const rmSteps = rmPaths[0];
+
+    rmSteps.forEach((s, i) => {
+        const d = document.createElement('div');
+        d.className = 'deriv-step visible';
+        d.innerHTML = `<span class="step-num">${i===0?'S=':i+'.'}</span>${i>0?'<span class="step-arrow">⇒</span>':''}<span class="step-form">${colorizeStep(s)}</span>`;
+        rmDiv.appendChild(d);
+    });
+
+    if (animTimer) clearTimeout(animTimer);
+    let idx = 0;
+    const showNext = () => {
+      if (idx >= steps.length) {
+        showStatus(`Valid! ${steps.length} steps. ${lmPaths.length > 1 ? 'Ambiguous' : ''}`);
+        // Build all parse trees
+        currentParseTrees = engine.buildTreeAll(engine.startSymbol, input);
+        currentTreeIdx = 0;
+        
+        if (currentParseTrees.length > 1) {
+            document.getElementById('tree-ambiguity-controls').style.display = 'flex';
+            document.getElementById('ambiguity-badge').innerHTML = `⚠ Ambiguous (${currentParseTrees.length} trees)`;
+        } else {
+            document.getElementById('tree-ambiguity-controls').style.display = 'none';
+        }
+        
+        renderCurrentTree();
+        return;
+      }
+      const step = steps[idx];
+      const div = document.createElement('div');
+      div.className = 'deriv-step';
+      div.innerHTML = `<span class="step-num">${idx===0?'S=':idx+'.'}</span>${idx>0?'<span class="step-arrow">⇒</span>':''}<span class="step-form">${colorizeStep(step)}</span>`;
+      lmDiv.appendChild(div);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { div.classList.add('visible'); });
+      });
+
+      div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      idx++;
+      animTimer = setTimeout(showNext, speed);
+    };
+    showNext();
+
+  } else {
+    badge.innerHTML = `<div class="result-badge invalid">✘ &nbsp;"${input || 'ε'}" is INVALID</div>`;
+    lmDiv.innerHTML = '<div class="empty" style="color:var(--invalid)">String is not in the language defined by this grammar</div>';
+    rmDiv.innerHTML = '<div class="empty"></div>';
+    currentParseTrees = [];
+    document.getElementById('tree-ambiguity-controls').style.display = 'none';
+    document.getElementById('tree-container').innerHTML = '<div class="empty">No parse tree</div>';
+    showStatus('Invalid string');
+  }
+}
+
+function colorizeStep(s) {
+  return [...s].map(c => {
+    if (c === 'ε') return `<span class="eps">${c}</span>`;
+    if (engine.isNT(c)) return `<span class="nt">${c}</span>`;
+    return `<span class="t">${c}</span>`;
+  }).join('');
+}
+
+function renderCurrentTree() {
+    if (!currentParseTrees || currentParseTrees.length === 0) return;
+    document.getElementById('tree-counter').textContent = `${currentTreeIdx + 1}/${currentParseTrees.length}`;
+    renderTree(currentParseTrees[currentTreeIdx]);
+}
+
+function nextTree() {
+    if (currentParseTrees.length > 0) {
+        currentTreeIdx = (currentTreeIdx + 1) % currentParseTrees.length;
+        renderCurrentTree();
+    }
+}
+
+function prevTree() {
+    if (currentParseTrees.length > 0) {
+        currentTreeIdx = (currentTreeIdx - 1 + currentParseTrees.length) % currentParseTrees.length;
+        renderCurrentTree();
+    }
+}
+
+// ── PARSE TREE RENDERER ────────────────────────────────────────────────────
+
+function renderTree(tree) {
+  const container = document.getElementById('tree-container');
+  if (!tree) {
+    container.innerHTML = '<div class="empty">Could not build parse tree</div>';
+    return;
+  }
+
+  // Compute layout
+  const NODE_R = 22;
+  const H_GAP = 54;
+  const V_GAP = 70;
+
+  let nodeId = 0;
+  function assignPositions(node, depth, offset) {
+    node.id = nodeId++;
+    node.depth = depth;
+    if (!node.children || node.children.length === 0) {
+      node.width = 1;
+      node.x = offset;
+      node.y = depth * V_GAP;
+      return 1;
+    }
+    let totalWidth = 0;
+    let childOffset = offset;
+    for (const child of node.children) {
+      const w = assignPositions(child, depth + 1, childOffset);
+      totalWidth += w;
+      childOffset += w;
+    }
+    node.width = totalWidth;
+    const firstX = node.children[0].x;
+    const lastX = node.children[node.children.length - 1].x;
+    node.x = (firstX + lastX) / 2;
+    node.y = depth * V_GAP;
+    return totalWidth;
+  }
+
+  const totalWidth = assignPositions(tree, 0, 0);
+  const svgW = Math.max(totalWidth * H_GAP + 40, 300);
+
+  // Collect all nodes and edges
+  const nodes = [];
+  const edges = [];
+  function collect(node) {
+    nodes.push(node);
+    for (const child of (node.children || [])) {
+      edges.push({ x1: node.x * H_GAP + 20, y1: node.y + NODE_R,
+                   x2: child.x * H_GAP + 20, y2: child.y - NODE_R });
+      collect(child);
+    }
+  }
+  collect(tree);
+
+  const maxDepth = Math.max(...nodes.map(n => n.depth));
+  const svgH = (maxDepth + 1) * V_GAP + 60;
+
+  let svg = `<svg id="tree-svg" width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Edges
+  for (const e of edges) {
+    svg += `<line class="tree-edge" x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}"/>`;
+  }
+
+  // Nodes
+  for (const n of nodes) {
+    const cx = n.x * H_GAP + 20;
+    const cy = n.y + NODE_R + 10;
+    const isEps = n.sym === 'ε';
+    const isTerm = !engine.isNT(n.sym) && !isEps;
+    const cls = isEps ? 'epsilon-node' : isTerm ? 'terminal' : '';
+    const textColor = isEps ? 'var(--accent2)' : isTerm ? 'var(--accent3)' : 'var(--accent)';
+
+    svg += `<circle class="tree-node-circle ${cls}" cx="${cx}" cy="${cy}" r="${NODE_R}"/>`;
+    svg += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+      fill="${textColor}" font-size="13" font-weight="600" font-family="'JetBrains Mono',monospace"
+      style="user-select:none">${n.sym}</text>`;
+  }
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+
+  // Animate nodes
+  const circles = container.querySelectorAll('.tree-node-circle');
+  circles.forEach((c, i) => {
+    c.style.opacity = '0';
+    c.style.transform = 'scale(0.5)';
+    c.style.transformOrigin = `${c.cx.baseVal.value}px ${c.cy.baseVal.value}px`;
+    c.style.transition = `opacity 0.3s ${i*40}ms, transform 0.3s ${i*40}ms`;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        c.style.opacity = '1';
+        c.style.transform = 'scale(1)';
+      });
+    });
+  });
+
+  switchTab('tree');
+}
+
+// ── TABS ───────────────────────────────────────────────────────────────────
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const tabs = ['words', 'derivation', 'tree'];
+    t.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ── STATUS ─────────────────────────────────────────────────────────────────
+
+function showStatus(msg) {
+  const el = document.querySelector('#bottom-status span');
+  if (el) el.textContent = msg;
+}
+
+// ── SPEED SLIDER ───────────────────────────────────────────────────────────
+
+document.getElementById('anim-speed').addEventListener('input', function() {
+  document.getElementById('speed-label').textContent = this.value + 'ms';
+});
+
+// ── MINI GAME ──────────────────────────────────────────────────────────────
+
+let currentGameWord = null;
+let currentGameExpected = false;
+
+function nextGameWord() {
+    if (!grammarParsed) return;
+    
+    const validWords = engine.generate(6);
+    const isInvalidPick = validWords.length > 0 && Math.random() > 0.5;
+    
+    if (validWords.length === 0 || isInvalidPick) {
+        // Generate random junk string (could be valid or invalid)
+        let terms = [...engine.terminals].filter(t => t !== '#');
+        if (terms.length === 0) terms = ['a', 'b'];
+        
+        const len = Math.floor(Math.random() * 5) + 1;
+        let str = '';
+        for (let i = 0; i < len; i++) {
+            str += terms[Math.floor(Math.random() * terms.length)];
+        }
+        
+        currentGameExpected = engine.validateAll(str, 'leftmost').length > 0;
+        currentGameWord = str;
+    } else {
+        currentGameExpected = true;
+        currentGameWord = validWords[Math.floor(Math.random() * validWords.length)];
+    }
+    
+    document.getElementById('game-word').textContent = currentGameWord || 'ε';
+    document.getElementById('game-feedback').innerHTML = '';
+    document.getElementById('game-next-btn').style.display = 'none';
+}
+
+function playGame(userGuess) {
+    if (!grammarParsed) { alert('Parse a grammar first!'); return; }
+    if (currentGameWord === null) nextGameWord();
+    
+    const feedback = document.getElementById('game-feedback');
+    if (userGuess === currentGameExpected) {
+        feedback.innerHTML = '<span style="color:var(--valid);">🎉 Correct!</span>';
+    } else {
+        feedback.innerHTML = `<span style="color:var(--invalid);">Oops! It was actually ${currentGameExpected ? 'VALID' : 'INVALID'}</span>`;
+    }
+    document.getElementById('game-next-btn').style.display = 'flex';
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+
+loadExample('anbn');
+</script>
+</body>
+</html>

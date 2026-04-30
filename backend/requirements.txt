@@ -1,0 +1,8 @@
+# CFG Simulator — Group 11
+# Python dependencies for the Flask backend (server.py)
+# Install with: pip install -r requirements.txt
+
+flask>=3.0.0
+
+# Note: subprocess, json, and os are Python standard library modules
+# and do NOT need to be listed here.
